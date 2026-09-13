@@ -16,7 +16,6 @@ class Note {
   String id;
   String title;
   String content;
-  String category;
   String folder;
   bool pinned;
   bool deleted;
@@ -26,7 +25,6 @@ class Note {
     required this.id,
     required this.title,
     required this.content,
-    required this.category,
     required this.folder,
     this.pinned = false,
     this.deleted = false,
@@ -38,7 +36,6 @@ class Note {
       'id': id,
       'title': title,
       'content': content,
-      'category': category,
       'folder': folder,
       'pinned': pinned,
       'deleted': deleted,
@@ -51,7 +48,6 @@ class Note {
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       content: json['content'] ?? '',
-      category: json['category'] ?? 'Personal',
       folder: json['folder'] ?? 'General',
       pinned: json['pinned'] ?? false,
       deleted: json['deleted'] ?? false,
@@ -73,7 +69,6 @@ class NotesApp extends StatefulWidget {
 }
 
 class _NotesAppState extends State<NotesApp> {
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _checkingOnboarding = true;
   bool _showOnboarding = false;
 
@@ -87,7 +82,7 @@ class _NotesAppState extends State<NotesApp> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _showOnboarding = Uri.base.queryParameters["reset"] == "1" || !(prefs.getBool("onboardingCompleted") ?? false);
+      _showOnboarding = true;
       _checkingOnboarding = false;
     });
   }
@@ -97,7 +92,6 @@ class _NotesAppState extends State<NotesApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'My Notepad',
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
@@ -116,22 +110,14 @@ class _NotesAppState extends State<NotesApp> {
               body: Center(child: CircularProgressIndicator()),
             )
           : _showOnboarding
-        ? OnboardingPage(
-            onComplete: (_) async {
-              if (!mounted) return;
-              _navigatorKey.currentState?.pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => NotesHome(
-                    darkMode: darkMode,
-                    onThemeChanged: (value) {
-                      setState(() => darkMode = value);
-                    },
-                  ),
-                ),
-                (route) => false,
-              );
-            },
-          )
+              ? OnboardingPage(
+                  onComplete: (_) async {
+                    if (!mounted) return;
+                    setState(() {
+                      _showOnboarding = false;
+                    });
+                  },
+                )
               : NotesHome(
         darkMode: darkMode,
         onThemeChanged: (value) {
@@ -162,12 +148,7 @@ class NotesHome extends StatefulWidget {
 
 class _NotesHomeState extends State<NotesHome> {
   List<Note> notes = [];
-  Map<String, List<String>> workspaces = {
-    'Personal': ['Daily Notes', 'Ideas', 'Goals'],
-  };
-  String selectedCategory = 'Personal';
-  List<String> get folders => workspaces[selectedCategory] ?? [];
-  List<String> get allFolders => workspaces.values.expand((e) => e).toList();
+  List<String> folders = ['General', 'Study', 'Work', 'Personal'];
 
   String selectedFolder = 'All';
   String searchText = '';
@@ -187,28 +168,14 @@ class _NotesHomeState extends State<NotesHome> {
     final prefs = await SharedPreferences.getInstance();
 
     final notesData = prefs.getStringList('notes') ?? [];
-    final workspaceJson = prefs.getString('workspaces');
     final foldersData = prefs.getStringList('folders');
 
     notes = notesData
         .map((e) => Note.fromJson(jsonDecode(e)))
         .toList();
 
-    if (workspaceJson != null && workspaceJson.isNotEmpty) {
-      final decoded = jsonDecode(workspaceJson) as Map<String, dynamic>;
-      workspaces = decoded.map(
-        (key, value) => MapEntry(key, List<String>.from(value as List)),
-      );
-    } else if (foldersData != null && foldersData.isNotEmpty) {
-      workspaces = {'Personal': List<String>.from(foldersData)};
-    }
-
-    if (workspaces.isEmpty) {
-      workspaces = {'Personal': ['Daily Notes', 'Ideas', 'Goals']};
-    }
-
-    if (!workspaces.containsKey(selectedCategory)) {
-      selectedCategory = workspaces.keys.first;
+    if (foldersData != null && foldersData.isNotEmpty) {
+      folders = foldersData;
     }
 
     setState(() {
@@ -224,8 +191,7 @@ class _NotesHomeState extends State<NotesHome> {
       notes.map((note) => jsonEncode(note.toJson())).toList(),
     );
 
-    await prefs.setString('workspaces', jsonEncode(workspaces));
-    await prefs.setStringList('folders', allFolders);
+    await prefs.setStringList('folders', folders);
   }
 
   // =====================
@@ -237,8 +203,7 @@ class _NotesHomeState extends State<NotesHome> {
       if (note.deleted) return false;
 
       final folderMatch =
-          (selectedFolder == 'All' || note.folder == selectedFolder) &&
-          note.category == selectedCategory;
+          selectedFolder == 'All' || note.folder == selectedFolder;
 
       final searchMatch =
           note.title.toLowerCase().contains(searchText.toLowerCase()) ||
@@ -264,8 +229,7 @@ class _NotesHomeState extends State<NotesHome> {
       context,
       MaterialPageRoute(
         builder: (_) => NoteEditor(
-          categories: workspaces.keys.toList(),
-          foldersByCategory: workspaces,
+          folders: folders,
         ),
       ),
     );
@@ -288,8 +252,7 @@ class _NotesHomeState extends State<NotesHome> {
       MaterialPageRoute(
         builder: (_) => NoteEditor(
           note: note,
-          categories: workspaces.keys.toList(),
-          foldersByCategory: workspaces,
+          folders: folders,
         ),
       ),
     );
@@ -340,15 +303,18 @@ class _NotesHomeState extends State<NotesHome> {
 
   Future<void> createFolder() async {
     final controller = TextEditingController();
+
     final folder = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('New folder in $selectedCategory'),
+          title: const Text('Create Folder'),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: 'Folder name'),
+            decoration: const InputDecoration(
+              hintText: 'Folder name',
+            ),
           ),
           actions: [
             TextButton(
@@ -358,7 +324,10 @@ class _NotesHomeState extends State<NotesHome> {
             FilledButton(
               onPressed: () {
                 final name = controller.text.trim();
-                if (name.isNotEmpty) Navigator.pop(context, name);
+
+                if (name.isNotEmpty) {
+                  Navigator.pop(context, name);
+                }
               },
               child: const Text('Create'),
             ),
@@ -367,11 +336,9 @@ class _NotesHomeState extends State<NotesHome> {
       },
     );
 
-    if (folder != null && !(workspaces[selectedCategory] ?? []).contains(folder)) {
-      workspaces[selectedCategory] = [
-        ...(workspaces[selectedCategory] ?? []),
-        folder,
-      ];
+    if (folder != null && !folders.contains(folder)) {
+      folders.add(folder);
+
       await saveData();
       setState(() {});
     }
@@ -404,8 +371,8 @@ class _NotesHomeState extends State<NotesHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          selectedCategory,
+        title: const Text(
+          'My Notepad',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
@@ -519,55 +486,25 @@ class _NotesHomeState extends State<NotesHome> {
               const Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'WORKSPACES',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  'FOLDERS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
 
-              ...workspaces.entries.map(
-                (entry) => ExpansionTile(
-                  leading: const Icon(Icons.workspaces_outlined),
-                  title: Text(entry.key),
-                  initiallyExpanded: entry.key == selectedCategory,
-                  onExpansionChanged: (expanded) {
-                    if (expanded) {
-                      setState(() {
-                        selectedCategory = entry.key;
-                        selectedFolder = 'All';
-                      });
-                    }
+              ...folders.map(
+                (folder) => ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: Text(folder),
+                  selected: selectedFolder == folder,
+                  onTap: () {
+                    setState(() {
+                      selectedFolder = folder;
+                    });
+
+                    Navigator.pop(context);
                   },
-                  children: [
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.folder_open_outlined, size: 20),
-                      title: const Text('All folders'),
-                      selected: selectedCategory == entry.key && selectedFolder == 'All',
-                      onTap: () {
-                        setState(() {
-                          selectedCategory = entry.key;
-                          selectedFolder = 'All';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ...entry.value.map(
-                      (folder) => ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                        leading: const Icon(Icons.folder_outlined, size: 20),
-                        title: Text(folder),
-                        selected: selectedCategory == entry.key && selectedFolder == folder,
-                        onTap: () {
-                          setState(() {
-                            selectedCategory = entry.key;
-                            selectedFolder = folder;
-                          });
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ),
-                  ],
                 ),
               ),
 
@@ -784,14 +721,12 @@ class NoteCard extends StatelessWidget {
 
 class NoteEditor extends StatefulWidget {
   final Note? note;
-  final List<String> categories;
-  final Map<String, List<String>> foldersByCategory;
+  final List<String> folders;
 
   const NoteEditor({
     super.key,
     this.note,
-    required this.categories,
-    required this.foldersByCategory,
+    required this.folders,
   });
 
   @override
@@ -802,7 +737,6 @@ class _NoteEditorState extends State<NoteEditor> {
   late TextEditingController titleController;
   late TextEditingController contentController;
 
-  late String selectedCategory;
   late String selectedFolder;
   late bool pinned;
 
@@ -820,16 +754,11 @@ class _NoteEditorState extends State<NoteEditor> {
       text: note?.content ?? '',
     );
 
-    final defaultCategory = widget.categories.isNotEmpty
-        ? widget.categories.first
-        : 'Personal';
-    selectedCategory = note != null && widget.categories.contains(note.category)
-        ? note.category
-        : defaultCategory;
-    final categoryFolders = widget.foldersByCategory[selectedCategory] ?? [];
-    selectedFolder = note != null && categoryFolders.contains(note.folder)
-        ? note.folder
-        : (categoryFolders.isNotEmpty ? categoryFolders.first : 'General');
+    selectedFolder =
+        note?.folder ??
+        (widget.folders.isNotEmpty
+            ? widget.folders.first
+            : 'General');
 
     pinned = note?.pinned ?? false;
   }
@@ -844,7 +773,6 @@ class _NoteEditorState extends State<NoteEditor> {
               .toString(),
       title: titleController.text.trim(),
       content: contentController.text,
-      category: selectedCategory,
       folder: selectedFolder,
       pinned: pinned,
       deleted: false,
@@ -903,49 +831,25 @@ class _NoteEditorState extends State<NoteEditor> {
 
             Row(
               children: [
-                const Icon(Icons.workspaces_outlined),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: selectedCategory,
-                    items: widget.categories
-                        .map((category) => DropdownMenuItem(
-                              value: category,
-                              child: Text(category),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedCategory = value;
-                          final nextFolders = widget.foldersByCategory[value] ?? [];
-                          selectedFolder = nextFolders.isNotEmpty ? nextFolders.first : 'General';
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
                 const Icon(Icons.folder_outlined),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: selectedFolder,
-                    items: (widget.foldersByCategory[selectedCategory] ?? ['General'])
-                        .map((folder) => DropdownMenuItem(
-                              value: folder,
-                              child: Text(folder),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) setState(() => selectedFolder = value);
-                    },
-                  ),
+                DropdownButton<String>(
+                  value: selectedFolder,
+                  items: widget.folders
+                      .map(
+                        (folder) => DropdownMenuItem(
+                          value: folder,
+                          child: Text(folder),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedFolder = value;
+                      });
+                    }
+                  },
                 ),
               ],
             ),
@@ -1153,7 +1057,7 @@ class NoteSearchDelegate extends SearchDelegate<Note?> {
           leading: const Icon(Icons.note),
           title: Text(note.title),
           subtitle: Text(
-            '${note.category} / ${note.folder}\n${note.content}',
+            note.content,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

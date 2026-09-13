@@ -95,6 +95,9 @@ class WorkspaceReadyPage extends StatelessWidget {
                 child: FilledButton(
                   onPressed: () async {
                 await onComplete(categories);
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
               },
                   child: const Text(
                     'Continue to My Notepad',
