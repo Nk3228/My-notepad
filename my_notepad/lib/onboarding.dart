@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'workspace.dart';
 
 class OnboardingPage extends StatefulWidget {
   final Future<void> Function(List<String>) onComplete;
@@ -145,7 +146,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
     await prefs.setStringList('folders', folders);
     await prefs.setBool('onboardingCompleted', true);
 
-    await widget.onComplete(selected.toList());
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => WorkspaceReadyPage(
+          categories: selected.toList(),
+          folders: recommended.toList(),
+          onComplete: widget.onComplete,
+        ),
+      ),
+    );
   }
 
   @override
@@ -248,7 +259,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: selected.isEmpty ? null : finish,
+                  onPressed: finish,
                   child: const Text(
                     'Continue',
                     style: TextStyle(fontSize: 17),
