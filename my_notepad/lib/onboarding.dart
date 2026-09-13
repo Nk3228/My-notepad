@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'workspace.dart';
@@ -30,6 +32,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
     {'name': 'Other', 'icon': Icons.more_horiz},
   ];
 
+  final Map<String, List<String>> folderTemplates = {
+    'Student': ['Subjects', 'Assignments', 'Exam Preparation'],
+    'Office / Worker': ['Meetings', 'Tasks', 'Projects'],
+    'Freelancer': ['Clients', 'Projects', 'Payments'],
+    'Business Owner': ['Customers', 'Orders', 'Expenses'],
+    'Content Creator': ['Video Ideas', 'Scripts', 'Captions', 'Research'],
+    'Teacher': ['Classes', 'Lesson Plans', 'Students', 'Teaching Notes'],
+    'Exam Preparation': ['Study Plan', 'Topics', 'Questions', 'Revision'],
+    'Personal': ['Daily Notes', 'Ideas', 'Goals'],
+    'Writer': ['Story Ideas', 'Drafts', 'Characters', 'Research'],
+    'Other': ['General'],
+  };
+
   void toggle(String name) {
     setState(() {
       if (selected.contains(name)) {
@@ -44,115 +59,29 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (selected.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
+    final workspaces = <String, List<String>>{};
 
-    final existingFolders = prefs.getStringList('folders') ?? [
-      'General',
-      'Study',
-      'Work',
-      'Personal',
-    ];
-
-    final recommended = <String>{};
-
-    if (selected.contains('Student')) {
-      recommended.addAll([
-        'Subjects',
-        'Assignments',
-        'Exam Preparation',
-        'Important Notes',
-      ]);
+    for (final category in selected) {
+      workspaces[category] = [
+        ...(folderTemplates[category] ?? ['General']),
+      ];
     }
 
-    if (selected.contains('Office / Worker')) {
-      recommended.addAll([
-        'Meetings',
-        'Tasks',
-        'Projects',
-        'Important',
-      ]);
-    }
-
-    if (selected.contains('Freelancer')) {
-      recommended.addAll([
-        'Clients',
-        'Projects',
-        'Ideas',
-        'Payments',
-      ]);
-    }
-
-    if (selected.contains('Business Owner')) {
-      recommended.addAll([
-        'Customers',
-        'Orders',
-        'Expenses',
-        'Business Ideas',
-      ]);
-    }
-
-    if (selected.contains('Content Creator')) {
-      recommended.addAll([
-        'Video Ideas',
-        'Scripts',
-        'Captions',
-        'Research',
-      ]);
-    }
-
-    if (selected.contains('Teacher')) {
-      recommended.addAll([
-        'Classes',
-        'Lesson Plans',
-        'Students',
-        'Teaching Notes',
-      ]);
-    }
-
-    if (selected.contains('Exam Preparation')) {
-      recommended.addAll([
-        'Study Plan',
-        'Topics',
-        'Questions',
-        'Revision',
-      ]);
-    }
-
-    if (selected.contains('Personal')) {
-      recommended.addAll([
-        'Daily Notes',
-        'Ideas',
-        'Shopping',
-        'Personal Goals',
-      ]);
-    }
-
-    if (selected.contains('Writer')) {
-      recommended.addAll([
-        'Story Ideas',
-        'Drafts',
-        'Characters',
-        'Research',
-      ]);
-    }
-
-    final folders = [...existingFolders];
-    for (final folder in recommended) {
-      if (!folders.contains(folder)) {
-        folders.add(folder);
-      }
+    if (workspaces.isEmpty) {
+      workspaces['Personal'] = ['Daily Notes', 'Ideas', 'Goals'];
     }
 
     await prefs.setStringList('userCategories', selected.toList());
-    await prefs.setStringList('folders', folders);
+    await prefs.setString('workspaces', jsonEncode(workspaces));
     await prefs.setBool('onboardingCompleted', true);
 
     if (!mounted) return;
 
-    await Navigator.of(context).pushReplacement(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WorkspaceReadyPage(
           categories: selected.toList(),
-          folders: recommended.toList(),
+          workspaces: workspaces,
           onComplete: widget.onComplete,
         ),
       ),
@@ -168,25 +97,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.note_alt_rounded,
-                size: 48,
-              ),
+              const Icon(Icons.note_alt_rounded, size: 48),
               const SizedBox(height: 18),
               const Text(
                 'Welcome to My Notepad',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               const Text(
                 'Aap My Notepad ka use kisliye karenge?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 6),
               Text(
@@ -259,7 +179,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: finish,
+                  onPressed: selected.isEmpty ? null : finish,
                   child: const Text(
                     'Continue',
                     style: TextStyle(fontSize: 17),

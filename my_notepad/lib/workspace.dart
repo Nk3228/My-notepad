@@ -2,117 +2,103 @@ import 'package:flutter/material.dart';
 
 class WorkspaceReadyPage extends StatelessWidget {
   final List<String> categories;
-  final List<String> folders;
+  final Map<String, List<String>> workspaces;
   final Future<void> Function(List<String>) onComplete;
 
   const WorkspaceReadyPage({
     super.key,
     required this.categories,
-    required this.folders,
+    required this.workspaces,
     required this.onComplete,
   });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text('Workspace Ready')),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Spacer(),
               Center(
                 child: Container(
-                  width: 86,
-                  height: 86,
+                  width: 78,
+                  height: 78,
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.check_rounded,
-                    size: 52,
+                    size: 48,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
               const Center(
                 child: Text(
                   'Your Workspace is Ready!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Center(
                 child: Text(
-                  'Humne aapke selected use-cases ke according folders prepare kiye hain.',
+                  'Categories ke andar unke relevant folders rakhe gaye hain.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 15,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
-              Text(
-                'Your folders',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
               Expanded(
                 child: ListView.separated(
-                  itemCount: folders.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemCount: categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .outlineVariant,
+                    final category = categories[index];
+                    final folders = workspaces[category] ?? const <String>[];
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: ExpansionTile(
+                        initiallyExpanded: index == 0,
+                        leading: const Icon(Icons.workspaces_outlined),
+                        title: Text(
+                          category,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.folder_outlined,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              folders[index],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                        children: folders
+                            .map(
+                              (folder) => ListTile(
+                                dense: true,
+                                contentPadding:
+                                    const EdgeInsets.only(left: 58, right: 16),
+                                leading: const Icon(Icons.folder_outlined),
+                                title: Text(folder),
                               ),
-                            ),
-                          ),
-                          const Icon(Icons.check_circle_outline),
-                        ],
+                            )
+                            .toList(),
                       ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: () => onComplete(categories),
+                  onPressed: () async {
+                await onComplete(categories);
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
                   child: const Text(
                     'Continue to My Notepad',
                     style: TextStyle(fontSize: 16),

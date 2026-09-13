@@ -82,7 +82,7 @@ class _NotesAppState extends State<NotesApp> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _showOnboarding = !(prefs.getBool("onboardingCompleted") ?? false);
+      _showOnboarding = true;
       _checkingOnboarding = false;
     });
   }
