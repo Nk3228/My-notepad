@@ -25,6 +25,7 @@ class Note {
   bool deleted;
   DateTime updatedAt;
   String? imageBase64;
+  List<String> images;
 
   Note({
     required this.id,
@@ -36,6 +37,7 @@ class Note {
     this.deleted = false,
     required this.updatedAt,
     this.imageBase64,
+    this.images = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -49,6 +51,7 @@ class Note {
       'deleted': deleted,
       'updatedAt': updatedAt.toIso8601String(),
       'imageBase64': imageBase64,
+      'images': images,
     };
   }
 
@@ -64,6 +67,12 @@ class Note {
       updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ??
           DateTime.now(),
       imageBase64: json['imageBase64'] as String?,
+      images: json['images'] != null
+          ? List<String>.from(json['images'])
+          : (json['imageBase64'] != null &&
+                  (json['imageBase64'] as String).isNotEmpty
+              ? [json['imageBase64'] as String]
+              : []),
     );
   }
 }
@@ -814,6 +823,7 @@ class _NoteEditorState extends State<NoteEditor> {
   late bool pinned;
   XFile? selectedImage;
   Uint8List? selectedImageBytes;
+  final List<Uint8List> selectedImagesBytes = [];
 
   @override
   void initState() {
@@ -866,6 +876,9 @@ class _NoteEditorState extends State<NoteEditor> {
       imageBase64: selectedImageBytes != null
           ? base64Encode(selectedImageBytes!)
           : widget.note?.imageBase64,
+      images: selectedImagesBytes.isNotEmpty
+          ? selectedImagesBytes.map(base64Encode).toList()
+          : (widget.note?.images ?? const []),
     );
 
     Navigator.pop(context, note);
@@ -882,37 +895,56 @@ class _NoteEditorState extends State<NoteEditor> {
         ),
         actions: [
             IconButton(
-              tooltip: 'Add Image',
-              icon: const Icon(Icons.image_outlined),
-              onPressed: () async {
-                final picker = ImagePicker();
-                final image = await picker.pickImage(
-                  source: ImageSource.gallery,
+            tooltip: 'Add Image',
+            icon: const Icon(Icons.image_outlined),
+            onPressed: () async {
+              final picker = ImagePicker();
+
+              final remaining = 40 - selectedImagesBytes.length;
+
+              if (remaining <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Maximum 40 images allowed'),
+                  ),
                 );
-                if (image != null) {
-                  final bytes = await image.readAsBytes();
+                return;
+              }
+
+              final images = await picker.pickMultiImage();
+
+              if (images.isEmpty) return;
+
+              for (final image in images.take(remaining)) {
+                final bytes = await image.readAsBytes();
+
+                if (!mounted) return;
+
+                final editedBytes = await Navigator.push<Uint8List>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ImageEditor(imageBytes: bytes),
+                  ),
+                );
+
+                if (editedBytes != null && mounted) {
                   setState(() {
+                    selectedImagesBytes.add(editedBytes);
                     selectedImage = image;
-                    selectedImageBytes = bytes;
+                    selectedImageBytes = editedBytes;
                   });
-
-      if (!mounted) return;
-
-      final editedBytes = await Navigator.push<Uint8List>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ImageEditor(imageBytes: bytes),
-        ),
-      );
-
-      if (editedBytes != null && mounted) {
-        setState(() {
-          selectedImageBytes = editedBytes;
-        });
-      }
                 }
-              },
-            ),
+              }
+
+              if (images.length > remaining && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Only 40 images can be added'),
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             tooltip: 'Pin',
             onPressed: () {
