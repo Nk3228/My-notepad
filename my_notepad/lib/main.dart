@@ -1041,19 +1041,72 @@ class _NoteEditorState extends State<NoteEditor> {
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 12),
                 child: SizedBox(
-                  height: 220,
+                  height: 250,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: selectedImagesBytes.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          selectedImagesBytes[index],
-                          height: 220,
-                          width: 220,
-                          fit: BoxFit.contain,
+                      return SizedBox(
+                        width: 230,
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.memory(
+                                selectedImagesBytes[index],
+                                height: 220,
+                                width: 230,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Row(
+                                children: [
+                                  Material(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: IconButton(
+                                      tooltip: "Edit image",
+                                      icon: const Icon(Icons.edit, color: Colors.white),
+                                      onPressed: () async {
+                                        final editedBytes = await Navigator.push<Uint8List>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => ImageEditor(imageBytes: selectedImagesBytes[index]),
+                                          ),
+                                        );
+                                        if (editedBytes != null && mounted) {
+                                          setState(() {
+                                            selectedImagesBytes[index] = editedBytes;
+                                            selectedImageBytes = editedBytes;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Material(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: IconButton(
+                                      tooltip: "Delete image",
+                                      icon: const Icon(Icons.delete_outline, color: Colors.white),
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedImagesBytes.removeAt(index);
+                                          selectedImageBytes = selectedImagesBytes.isEmpty ? null : selectedImagesBytes.last;
+                                          selectedImage = selectedImagesBytes.isEmpty ? null : selectedImage;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },
