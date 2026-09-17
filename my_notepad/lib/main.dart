@@ -852,9 +852,15 @@ class _NoteEditorState extends State<NoteEditor> {
 
     pinned = note?.pinned ?? false;
 
-    if (note?.imageBase64 != null &&
+    if (note != null && note.images.isNotEmpty) {
+      selectedImagesBytes.addAll(
+        note.images.map((image) => base64Decode(image)),
+      );
+      selectedImageBytes = selectedImagesBytes.last;
+    } else if (note?.imageBase64 != null &&
         note!.imageBase64!.isNotEmpty) {
       selectedImageBytes = base64Decode(note.imageBase64!);
+      selectedImagesBytes.add(selectedImageBytes!);
     }
   }
 
@@ -1031,16 +1037,29 @@ class _NoteEditorState extends State<NoteEditor> {
               ],
             ),
 
-            if (selectedImageBytes != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 12),
-              child: Image.memory(
-                selectedImageBytes!,
-                height: 220,
-                width: double.infinity,
-                fit: BoxFit.contain,
+            if (selectedImagesBytes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 12),
+                child: SizedBox(
+                  height: 220,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: selectedImagesBytes.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          selectedImagesBytes[index],
+                          height: 220,
+                          width: 220,
+                          fit: BoxFit.contain,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
 
           const Divider(),
 
