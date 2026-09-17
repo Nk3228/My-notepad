@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'image_editor.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'onboarding.dart';
 
@@ -21,6 +24,7 @@ class Note {
   bool pinned;
   bool deleted;
   DateTime updatedAt;
+  String? imageBase64;
 
   Note({
     required this.id,
@@ -31,6 +35,7 @@ class Note {
     this.pinned = false,
     this.deleted = false,
     required this.updatedAt,
+    this.imageBase64,
   });
 
   Map<String, dynamic> toJson() {
@@ -43,6 +48,7 @@ class Note {
       'pinned': pinned,
       'deleted': deleted,
       'updatedAt': updatedAt.toIso8601String(),
+      'imageBase64': imageBase64,
     };
   }
 
@@ -57,6 +63,7 @@ class Note {
       deleted: json['deleted'] ?? false,
       updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ??
           DateTime.now(),
+      imageBase64: json['imageBase64'] as String?,
     );
   }
 }
@@ -805,6 +812,8 @@ class _NoteEditorState extends State<NoteEditor> {
   late String selectedCategory;
   late String selectedFolder;
   late bool pinned;
+  XFile? selectedImage;
+  Uint8List? selectedImageBytes;
 
   @override
   void initState() {
@@ -832,6 +841,11 @@ class _NoteEditorState extends State<NoteEditor> {
         : (categoryFolders.isNotEmpty ? categoryFolders.first : 'General');
 
     pinned = note?.pinned ?? false;
+
+    if (note?.imageBase64 != null &&
+        note!.imageBase64!.isNotEmpty) {
+      selectedImageBytes = base64Decode(note.imageBase64!);
+    }
   }
 
   void saveNote() {
@@ -849,6 +863,9 @@ class _NoteEditorState extends State<NoteEditor> {
       pinned: pinned,
       deleted: false,
       updatedAt: DateTime.now(),
+      imageBase64: selectedImageBytes != null
+          ? base64Encode(selectedImageBytes!)
+          : widget.note?.imageBase64,
     );
 
     Navigator.pop(context, note);
@@ -864,6 +881,38 @@ class _NoteEditorState extends State<NoteEditor> {
               : 'Edit Note',
         ),
         actions: [
+            IconButton(
+              tooltip: 'Add Image',
+              icon: const Icon(Icons.image_outlined),
+              onPressed: () async {
+                final picker = ImagePicker();
+                final image = await picker.pickImage(
+                  source: ImageSource.gallery,
+                );
+                if (image != null) {
+                  final bytes = await image.readAsBytes();
+                  setState(() {
+                    selectedImage = image;
+                    selectedImageBytes = bytes;
+                  });
+
+      if (!mounted) return;
+
+      final editedBytes = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ImageEditor(imageBytes: bytes),
+        ),
+      );
+
+      if (editedBytes != null && mounted) {
+        setState(() {
+          selectedImageBytes = editedBytes;
+        });
+      }
+                }
+              },
+            ),
           IconButton(
             tooltip: 'Pin',
             onPressed: () {
@@ -950,7 +999,18 @@ class _NoteEditorState extends State<NoteEditor> {
               ],
             ),
 
-            const Divider(),
+            if (selectedImageBytes != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 12),
+              child: Image.memory(
+                selectedImageBytes!,
+                height: 220,
+                width: double.infinity,
+                fit: BoxFit.contain,
+              ),
+            ),
+
+          const Divider(),
 
             Expanded(
               child: TextField(
